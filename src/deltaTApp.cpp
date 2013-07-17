@@ -8,6 +8,7 @@
 #include "cinder/gl/Material.h"
 #include "OscListener.h"
 #include "OscMessage.h"
+#include "HeadCam.h"
 #include <queue>
 #include <vector>
 #include <list>
@@ -17,7 +18,8 @@ using namespace ci;
 using namespace ci::app;
 using namespace std;
 
-
+#define APP_WIDTH		2560
+#define APP_HEIGHT		720
 
 #define ROOM_WIDTH 300
 #define ROOM_HEIGHT 200
@@ -31,17 +33,27 @@ using namespace std;
 
 class deltaTApp : public AppNative {
   public:
+	virtual void prepareSettings( Settings *settings );
 	void setup();
 	void mouseDown( MouseEvent event );	
 	void mouseMove( MouseEvent event );
 	void update();
 	void draw();
+	void drawGuts(Area area);
 	void checkOSCMessage(const osc::Message * message);
 	float constrain(float input, float min, float max);
 	void setupGLLights(ColorA color);
 	void drawRibbon(list<Vec3f> list0, list<Vec3f> list1);
-	
-	CameraPersp mCam;
+	void setCameras(Vec3f headPosition, bool fromKeyboard);
+
+
+	CameraPersp mCam0;
+	CameraPersp mCam1;
+	CameraPersp mActivePerspCam;
+	HeadCam mActiveCam;
+	HeadCam mHeadCam0;
+	HeadCam mHeadCam1;
+
 	params::InterfaceGlRef mParams;
 	list<Vec3f> pointList;
 	vector<list<Vec3f>> pointListArray;
@@ -60,6 +72,57 @@ class deltaTApp : public AppNative {
 	int frameCounter;
 };
 
+void deltaTApp::prepareSettings( Settings *settings )
+{
+	settings->setWindowSize( APP_WIDTH, APP_HEIGHT );
+	//settings->setBorderless();
+	//settings->setWindowPos(0,0);
+}
+
+void deltaTApp::setCameras(Vec3f headPosition, bool fromKeyboard = false){
+	// Separate out the components	
+	float headX = headPosition.x;
+	float headY = headPosition.y;
+	float headZ = headPosition.z;
+	
+	// Adjust these away from the wonky coordinates we get from the Kinect,
+	//  then normalize them so that they're in units of 100px per foot
+
+	if (!fromKeyboard){
+	//3.28 feet in a meter
+		headX = headX * 3.28f * 100;
+		headY = headY * 3.28f * 100 - ( ROOM_HEIGHT / 3 ); // Offset to bring up the vertical position of the eye
+		headZ = headZ * 3.28f * 100;
+	}
+	
+	// Make sure that the cameras are located somewhere in front of the screens
+	//  Orientation is   X
+	//                   |        ------> Screen 2 x axis
+	//                   |   ------ Screen 2
+	//                   |   |
+	//                   |   |
+	//         Z----<----|---o < Screen 1, o is the origin
+	//                   |   | 
+	//                   v   |
+
+	//console() << "headX: " << headX << std::endl;
+	//console() << "headZ: " << headZ << std::endl;
+
+	if (headZ > ROOM_DEPTH / 2){
+		mHeadCam0.setEye(Vec3f(headX, headY, headZ));
+	}
+	else{
+		mHeadCam0.mEye = Vec3f(0,0,1200);
+	}
+	if (headX < -ROOM_WIDTH / 2){
+		// headZ is negative here since that axis is backwards on Screen 2
+		mHeadCam1.setEye(Vec3f(headX, headY, headZ));
+	}
+	else{
+		mHeadCam1.mEye = Vec3f(-1200,0,0);
+	}
+}
+
 void deltaTApp::mouseMove( MouseEvent event )
 {
 	mMousePos.x = event.getX() - getWindowWidth() * 0.5f;
@@ -73,11 +136,27 @@ ColorA colorFrom255(int r, int g, int b, int a){
 void deltaTApp::setup()
 {
 	// Set up our camera. This probably won't move this time...
-	mCam.setPerspective(60.0f, getWindowAspectRatio(), 1, 10000);
+	mCam0.setPerspective(60.0f, getWindowAspectRatio(), 1, 10000);
 	Vec3f mEye = Vec3f(0,0,600);
 	Vec3f mCenter = Vec3f(0,0, 0);//ROOM_DEPTH / 2 );
 	Vec3f mUp = Vec3f::yAxis();
-	mCam.lookAt( mEye, mCenter, mUp );
+	mCam0.lookAt( mEye, mCenter, mUp );
+
+	mCam1.setPerspective(60.0f, getWindowAspectRatio(), 1, 10000);
+	mEye = Vec3f(-600,0,0);
+	mCenter = Vec3f(0,0, 0);//ROOM_DEPTH / 2 );
+	mUp = Vec3f::yAxis();
+	mCam1.lookAt( mEye, mCenter, mUp );
+
+	// Setup the camera for the main window
+	mHeadCam0 = HeadCam( 1210.0f, getWindowAspectRatio() );
+	mHeadCam0.mEye = Vec3f(-1200,0,1200);
+	mHeadCam0.mEye.y = 0;
+	mHeadCam0.mCenter = Vec3f(0,0, ROOM_DEPTH / 2 );
+
+	mHeadCam1 = HeadCam( 1200.0f, getWindowAspectRatio() );
+	mHeadCam1.mEye = Vec3f(-1210,0,0);
+	mHeadCam1.mCenter = Vec3f(-ROOM_WIDTH / 2, 0, 0 );
 	
 	// Set up a listener for OSC messages
 	oscListener.setup(7114);
@@ -217,9 +296,68 @@ void deltaTApp::mouseDown( MouseEvent event )
 
 void deltaTApp::update()
 {
-	// Update camera position data
-	gl::setMatrices(mCam);
-	gl::rotate(mSceneRotation);
+
+
+	Vec3f projectionEye = mHeadCam0.mEye;
+	projectionEye.x = mHeadCam0.mCenter.x;
+	projectionEye.y = mHeadCam0.mCenter.y;
+
+	float zOffset = projectionEye.z - mHeadCam0.mCenter.z;
+	// We have to adjust the camera to take into account that it
+	//  doesn't distort enough past the edge of the screen
+	float r = 0.0f; 
+	float camXStorage = mHeadCam0.mEye.x;
+	if (mHeadCam0.mEye.x < -300){
+		r = (mHeadCam0.mEye.x + (ROOM_WIDTH / 2 )) / (mHeadCam0.mEye.z - (ROOM_DEPTH / 2));
+		mHeadCam0.mEye.x += r * mHeadCam0.mEye.z;
+	}
+
+	Vec3f bottomLeft = Vec3f(-300, -200, -zOffset);
+	Vec3f bottomRight = Vec3f(300, -200, -zOffset);
+	Vec3f topLeft = Vec3f(-300, 200, -zOffset);
+
+	mHeadCam0.update(projectionEye, bottomLeft, bottomRight, topLeft);
+	// Restore our camera position
+	mHeadCam0.mEye.x = camXStorage;
+
+	console() << "cam0 position" << mHeadCam0.mEye << std::endl;
+	console() << "projectionEye position" << projectionEye << std::endl;
+	// Make sure to set it back, so updating doesn't make this fly away...
+	// Now update Camera 1
+	
+	float xOffset = projectionEye.x - mHeadCam1.mCenter.x;
+	
+	// The values we pass into update for the bounds and the projectionEye need to 
+	//  be coordinates relative to the camera, but mHeadCam1 is in global coordinates!
+	bottomLeft = Vec3f(-300, -200, mHeadCam1.mEye.x + 300);//xOffset);
+	bottomRight = Vec3f(300, -200, mHeadCam1.mEye.x + 300);//xOffset);
+	topLeft = Vec3f(-300, 200, mHeadCam1.mEye.x + 300);//xOffset);
+	
+	projectionEye.y = mHeadCam1.mCenter.y;
+	projectionEye.z = mHeadCam1.mCenter.z;
+
+	Vec3f tempEye = mHeadCam1.mEye;
+	// Again, I don't know why I've got to multiply this by 2
+	mHeadCam1.mEye.x = tempEye.z;
+	mHeadCam1.mEye.z = -tempEye.x;
+		
+	projectionEye = Vec3f(-mHeadCam1.mEye.z,0, 0);
+
+	// Again, we have to adjust for the incorrect camera correction
+	if (mHeadCam1.mEye.x > 300){
+		r = (mHeadCam1.mEye.x - (ROOM_DEPTH / 2 )) / (mHeadCam1.mEye.z - (ROOM_WIDTH / 2));
+		mHeadCam1.mEye.x += r * mHeadCam1.mEye.z;
+	}
+	
+	console() << "ratio is : " << r << std::endl;
+	
+	mHeadCam1.update(projectionEye, bottomLeft, bottomRight, topLeft);
+	
+	console() << "cam1 position" << mHeadCam1.mEye << std::endl;
+	console() << "projectionEye position" << projectionEye << std::endl;
+	mHeadCam1.mEye.x = tempEye.x;
+	mHeadCam1.mEye.z = tempEye.z;
+
 
 	// Update line position data by culling the old data
 	for (unsigned int i = 0; i < pointListArray.size(); i++){
@@ -320,6 +458,34 @@ void deltaTApp::drawRibbon(list<Vec3f> l0, list<Vec3f> l1){
 
 void deltaTApp::draw()
 {
+	Area mViewArea0 = Area(0, 0, getWindowSize().x / 2,getWindowSize().y);
+	Area mViewArea1 = Area(getWindowSize().x / 2, 0, getWindowSize().x, getWindowSize().y);
+
+	gl::clear( ColorA( 0.1f, 0.1f, 0.1f, 0.0f ), true );
+
+	
+
+	mActiveCam = mHeadCam1;
+	mActivePerspCam = mCam0;
+	drawGuts(mViewArea0);
+
+	mActivePerspCam = mCam1;
+	mActiveCam = mHeadCam0;
+	drawGuts(mViewArea1);
+}
+
+void deltaTApp::drawGuts(Area area){
+
+	
+
+	gl::setMatricesWindow( getWindowSize(), false );
+	//gl::setViewport( getWindowBounds() );
+	gl::setViewport( area ); // This is what it will need to be set as
+	// Update camera position data
+	gl::setMatrices(mActivePerspCam);
+	gl::rotate(mSceneRotation);
+	
+
 	// clear out the window with white
 	gl::clear( Color( 1, 1, 1 ) ); 
 	gl::enableAlphaBlending();
@@ -332,7 +498,9 @@ void deltaTApp::draw()
 		setupGLLights(lightingColor);
 		drawRibbon(pointListArray[i], pointListArray[i+1]);
 	}
+
 	mParams->draw();
+
 }
 
 CINDER_APP_NATIVE( deltaTApp, RendererGl )
