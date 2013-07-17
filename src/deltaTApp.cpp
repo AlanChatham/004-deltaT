@@ -47,6 +47,7 @@ class deltaTApp : public AppNative {
 	vector<list<Vec3f>> pointListArray;
 	Quatf mSceneRotation;
 	Color mLineColor;
+	Vec3f lightPosition;
 
 	osc::Listener oscListener;
 
@@ -66,7 +67,7 @@ void deltaTApp::mouseMove( MouseEvent event )
 }
 
 ColorA colorFrom255(int r, int g, int b, int a){
-	return ColorA(r/255.0, g/255.0, b/255.0, a/255.0);
+	return ColorA(r/255.0f, g/255.0f, b/255.0f, a/255.0f);
 }
 
 void deltaTApp::setup()
@@ -86,13 +87,14 @@ void deltaTApp::setup()
 	mParams = params::InterfaceGl::create( "deltaT", Vec2i( 225, 200 ) );
 	mParams->addParam( "Scene Rotation", &mSceneRotation );
 	mParams->addParam( "Color", &mLineColor );
+	mParams->addParam( "Position", &lightPosition);
 	mLineColor = Color(.3f,.5f, .6f);
 	mColorList.push_back(colorFrom255(0,181,164,255));
 	mColorList.push_back(colorFrom255(0,255,231,255));
 	mColorList.push_back(colorFrom255(222,255,252,255));
 	mColorList.push_back(colorFrom255(253,68,25,255));
-	mColorList.push_back(ColorA(1,.4,1, 1));
-	mColorList.push_back(ColorA(.4,1,1, 1));
+	mColorList.push_back(ColorA(1,.4f,1, 1));
+	mColorList.push_back(ColorA(.4f,1,1, 1));
 
 	// Let's get some test data
 	pointList.push_back(Vec3f(0,0,0));
@@ -241,9 +243,8 @@ void deltaTApp::setupGLLights(ColorA color){
 	float green = color.g;
 	float blue = color.b;
 	float alpha = color.a;
-	glEnable( GL_LIGHTING );
-	glEnable( GL_LIGHT0 );
 	GLfloat light_position[] = { mMousePos.x, mMousePos.y, 75.0f, 0.0f };
+	GLfloat light1_position[] = { lightPosition.x,lightPosition.y, lightPosition.z, 0.0f };
 
 	GLfloat mat_specular[] = { red, green, blue, alpha };
 	GLfloat mat_diffuse[] = { red, green, blue, alpha};
@@ -254,9 +255,17 @@ void deltaTApp::setupGLLights(ColorA color){
 	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_specular);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, mat_specular);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
-	glLightfv( GL_LIGHT0, GL_POSITION, light_position );
+	glLightfv( GL_LIGHT0, GL_POSITION, light1_position );
 	glLightfv( GL_LIGHT0, GL_AMBIENT, mat_diffuse );
+	glLightfv( GL_LIGHT1, GL_POSITION, light1_position);
+	glEnable( GL_LIGHTING );
+	glEnable( GL_LIGHT0 );
+	//glEnable(GL_LIGHT1);
 }
+
+//Vec3f getTriangleNormal(Vec3f p0, Vec3f p1, Vec3f p2){
+
+//}
 
 // Draws a ribbon between points outlined by our two vector lists
 void deltaTApp::drawRibbon(list<Vec3f> l0, list<Vec3f> l1){
@@ -276,6 +285,10 @@ void deltaTApp::drawRibbon(list<Vec3f> l0, list<Vec3f> l1){
 			normal.x = (u.y * v.z) - (u.z * v.y);
 			normal.y = (u.z * v.x) - (u.x * v.z);
 			normal.z = (u.x * v.y) - (u.y * v.x);
+			// If the normal is pointing away from the camera, flip it
+			if(normal.z < 0){
+				normal.invert();
+			}
 			normal.normalize();
 			glNormal3f(normal);
 		}
@@ -292,6 +305,10 @@ void deltaTApp::drawRibbon(list<Vec3f> l0, list<Vec3f> l1){
 			normal.y = (u.z * v.x) - (u.x * v.z);
 			normal.z = (u.x * v.y) - (u.y * v.x);
 			normal.normalize();
+			// If the normal is pointing away from the camera, flip it
+			if(normal.z < 0){
+				normal.invert();
+			}
 			glNormal3f(normal);
 		}
 		gl::vertex(*j);
@@ -310,7 +327,7 @@ void deltaTApp::draw()
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 
-	for (int i = 0; i+1 < pointListArray.size(); i += 2){
+	for (unsigned int i = 0; i+1 < pointListArray.size(); i += 2){
 		ColorA lightingColor = mColorList[i % mColorList.size()];
 		setupGLLights(lightingColor);
 		drawRibbon(pointListArray[i], pointListArray[i+1]);
