@@ -63,6 +63,8 @@ void HeadCam::update( Vec3f projectionPosition, Vec3f bottomLeft, Vec3f bottomRi
 //	app::console() << gl::getProjection() << std::endl;
 //	mMvpMatrix = mCam.getProjectionMatrix() * mCam.getModelViewMatrix();
 	mMvpMatrix = gl::getProjection() * mCam.getModelViewMatrix();
+	mProjectionMatrix = gl::getProjection();
+	mModelViewMatrix = mCam.getModelViewMatrix();
 	gl::popMatrices();
 }
 

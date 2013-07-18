@@ -122,6 +122,7 @@
     <ClCompile Include="..\src\HeadCam.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\HeadCam.h" />
     <ClInclude Include="..\include\Resources.h" />
     <ClInclude Include="..\blocks\OSC\src\OscArg.h" />
     <ClInclude Include="..\blocks\OSC\src\OscBundle.h" />

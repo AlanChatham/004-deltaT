@@ -21,11 +21,11 @@ using namespace std;
 #define APP_WIDTH		2560
 #define APP_HEIGHT		720
 
-#define ROOM_WIDTH 300
-#define ROOM_HEIGHT 200
-#define ROOM_DEPTH 300
+#define ROOM_WIDTH 600
+#define ROOM_HEIGHT 400
+#define ROOM_DEPTH 600
 
-#define MAX_LINE_SIZE 100
+#define MAX_LINE_SIZE 200
 
 
 
@@ -59,7 +59,7 @@ class deltaTApp : public AppNative {
 	vector<list<Vec3f>> pointListArray;
 	Quatf mSceneRotation;
 	Color mLineColor;
-	Vec3f lightPosition;
+	Vec3f mLightPosition;
 
 	osc::Listener oscListener;
 
@@ -75,8 +75,8 @@ class deltaTApp : public AppNative {
 void deltaTApp::prepareSettings( Settings *settings )
 {
 	settings->setWindowSize( APP_WIDTH, APP_HEIGHT );
-	//settings->setBorderless();
-	//settings->setWindowPos(0,0);
+	settings->setBorderless();
+	settings->setWindowPos(0,0);
 }
 
 void deltaTApp::setCameras(Vec3f headPosition, bool fromKeyboard = false){
@@ -136,14 +136,14 @@ ColorA colorFrom255(int r, int g, int b, int a){
 void deltaTApp::setup()
 {
 	// Set up our camera. This probably won't move this time...
-	mCam0.setPerspective(60.0f, getWindowAspectRatio(), 1, 10000);
-	Vec3f mEye = Vec3f(0,0,600);
+	mCam0.setPerspective(90.0f, getWindowAspectRatio(), 1, 10000);
+	Vec3f mEye = Vec3f(0,0,300);
 	Vec3f mCenter = Vec3f(0,0, 0);//ROOM_DEPTH / 2 );
 	Vec3f mUp = Vec3f::yAxis();
 	mCam0.lookAt( mEye, mCenter, mUp );
 
-	mCam1.setPerspective(60.0f, getWindowAspectRatio(), 1, 10000);
-	mEye = Vec3f(-600,0,0);
+	mCam1.setPerspective(90.0f, getWindowAspectRatio(), 1, 10000);
+	mEye = Vec3f(-300,0,0);
 	mCenter = Vec3f(0,0, 0);//ROOM_DEPTH / 2 );
 	mUp = Vec3f::yAxis();
 	mCam1.lookAt( mEye, mCenter, mUp );
@@ -166,14 +166,16 @@ void deltaTApp::setup()
 	mParams = params::InterfaceGl::create( "deltaT", Vec2i( 225, 200 ) );
 	mParams->addParam( "Scene Rotation", &mSceneRotation );
 	mParams->addParam( "Color", &mLineColor );
-	mParams->addParam( "Position", &lightPosition);
+	mParams->addParam( "Position", &mLightPosition);
+	mLightPosition = Vec3f(300,300,600);
+
 	mLineColor = Color(.3f,.5f, .6f);
-	mColorList.push_back(colorFrom255(0,181,164,255));
-	mColorList.push_back(colorFrom255(0,255,231,255));
-	mColorList.push_back(colorFrom255(222,255,252,255));
-	mColorList.push_back(colorFrom255(253,68,25,255));
-	mColorList.push_back(ColorA(1,.4f,1, 1));
-	mColorList.push_back(ColorA(.4f,1,1, 1));
+	mColorList.push_back(colorFrom255(0,181,164,200)); // Bluish
+	mColorList.push_back(colorFrom255(170,62,78,200)); // Redish
+	mColorList.push_back(colorFrom255(248,222,77,200)); // Yellowish
+	mColorList.push_back(colorFrom255(200,51,73,200)); // Redish
+	mColorList.push_back(colorFrom255(254,173,82,200)); // Orangeish
+	mColorList.push_back(colorFrom255(0,205,181,200)); // Blueish
 
 	// Let's get some test data
 	pointList.push_back(Vec3f(0,0,0));
@@ -226,7 +228,7 @@ void deltaTApp::checkOSCMessage(const osc::Message * message){
 		float headY = message->getArgAsFloat(1);
 		float headZ = message->getArgAsFloat(2);
 
-		//setCameras(Vec3f(headX, headY, headZ), false);
+		setCameras(Vec3f(headX, headY, headZ), false);
 	}
 
 	if (message->getAddress() == "/forearm" && message->getNumArgs() == 7){
@@ -250,16 +252,21 @@ void deltaTApp::checkOSCMessage(const osc::Message * message){
 		elbowZ = elbowZ * 3.28f * 100;
 	
 
-		// Front kinects
-		if (handZ > 400){
+		// Front kinects - only use data from these
+		if (handZ > 400 && handX < 300 && handX > -300){
 			handZ -= 1500;
 			elbowZ -= 1500;
 			// Make sure that hands stay in the box-ish
 			handX = constrain(handX, -290, 290);
+			handX = constrain(handX, -350, 290);
 			handZ = constrain(handZ, -290, 290);
 			elbowX = constrain(elbowX, -290, 290);
+			elbowX = constrain(elbowX, -350, 290);
 			elbowZ = constrain(elbowZ, -290, 290);		
 		}
+		// Don't use the data from the side kinects
+		else
+			return;
 		// side kinects
 		if (handX < -400){
 			handX += 1200;
@@ -268,14 +275,14 @@ void deltaTApp::checkOSCMessage(const osc::Message * message){
 			elbowX *= 1.1f;
 			// Make sure that hands stay in the box-ish
 			handX = constrain(handX, -290, 290);
-			handZ = constrain(handZ, -290, 290);
+			handZ = constrain(handZ, -290, 350);
 			elbowX = constrain(elbowX, -290, 290);
-			elbowZ = constrain(elbowZ, -290, 290);
+			elbowZ = constrain(elbowZ, -290, 350);
 		}
 
 		// Now that we've adjusted out data, let's put it into the arrays
-		Vec3f handPosition = Vec3f(handX, handY, -handZ);
-		Vec3f elbowPosition = Vec3f(elbowX, elbowY, -elbowZ);
+		Vec3f handPosition = Vec3f(handX, handY, handZ);
+		Vec3f elbowPosition = Vec3f(elbowX, elbowY, elbowZ);
 		// Sanity check, then see what we can do
 		while (pointListArray.size() < ((ID + 1) * 2)){
 			list<Vec3f> l0;
@@ -296,8 +303,6 @@ void deltaTApp::mouseDown( MouseEvent event )
 
 void deltaTApp::update()
 {
-
-
 	Vec3f projectionEye = mHeadCam0.mEye;
 	projectionEye.x = mHeadCam0.mCenter.x;
 	projectionEye.y = mHeadCam0.mCenter.y;
@@ -320,8 +325,8 @@ void deltaTApp::update()
 	// Restore our camera position
 	mHeadCam0.mEye.x = camXStorage;
 
-	console() << "cam0 position" << mHeadCam0.mEye << std::endl;
-	console() << "projectionEye position" << projectionEye << std::endl;
+//	console() << "cam0 position" << mHeadCam0.mEye << std::endl;
+//	console() << "projectionEye position" << projectionEye << std::endl;
 	// Make sure to set it back, so updating doesn't make this fly away...
 	// Now update Camera 1
 	
@@ -349,12 +354,10 @@ void deltaTApp::update()
 		mHeadCam1.mEye.x += r * mHeadCam1.mEye.z;
 	}
 	
-	console() << "ratio is : " << r << std::endl;
-	
 	mHeadCam1.update(projectionEye, bottomLeft, bottomRight, topLeft);
 	
-	console() << "cam1 position" << mHeadCam1.mEye << std::endl;
-	console() << "projectionEye position" << projectionEye << std::endl;
+//	console() << "cam1 position" << mHeadCam1.mEye << std::endl;
+//	console() << "projectionEye position" << projectionEye << std::endl;
 	mHeadCam1.mEye.x = tempEye.x;
 	mHeadCam1.mEye.z = tempEye.z;
 
@@ -366,6 +369,16 @@ void deltaTApp::update()
 		}
 	}
 
+	frameCounter++;
+	// Also cull old data when enough frames pass
+	if( frameCounter % 30 == 0){
+		//console() << "culling..." << endl;
+		for (unsigned int i = 0; i < pointListArray.size(); i++){
+			if (pointListArray[i].size() > 0){
+				pointListArray[i].pop_front();
+			}
+		}
+	}
 	// Parse OSC messages!
 	while( oscListener.hasWaitingMessages() ) {
 		osc::Message message;
@@ -382,7 +395,7 @@ void deltaTApp::setupGLLights(ColorA color){
 	float blue = color.b;
 	float alpha = color.a;
 	GLfloat light_position[] = { mMousePos.x, mMousePos.y, 75.0f, 0.0f };
-	GLfloat light1_position[] = { lightPosition.x,lightPosition.y, lightPosition.z, 0.0f };
+	GLfloat light1_position[] = { mLightPosition.x,mLightPosition.y, mLightPosition.z, 0.0f };
 
 	GLfloat mat_specular[] = { red, green, blue, alpha };
 	GLfloat mat_diffuse[] = { red, green, blue, alpha};
@@ -401,9 +414,6 @@ void deltaTApp::setupGLLights(ColorA color){
 	//glEnable(GL_LIGHT1);
 }
 
-//Vec3f getTriangleNormal(Vec3f p0, Vec3f p1, Vec3f p2){
-
-//}
 
 // Draws a ribbon between points outlined by our two vector lists
 void deltaTApp::drawRibbon(list<Vec3f> l0, list<Vec3f> l1){
@@ -453,54 +463,67 @@ void deltaTApp::drawRibbon(list<Vec3f> l0, list<Vec3f> l1){
 
 	}
 	glEnd();
+
+	
 }
 
 
 void deltaTApp::draw()
 {
-	Area mViewArea0 = Area(0, 0, getWindowSize().x / 2,getWindowSize().y);
-	Area mViewArea1 = Area(getWindowSize().x / 2, 0, getWindowSize().x, getWindowSize().y);
+	Area mViewAreaLeft = Area(0, 0, getWindowSize().x / 2,getWindowSize().y);
+	Area mViewAreaRight = Area(getWindowSize().x / 2, 0, getWindowSize().x, getWindowSize().y);
 
-	gl::clear( ColorA( 0.1f, 0.1f, 0.1f, 0.0f ), true );
-
-	
+	gl::clear( ColorA( 1, 1, 1, 0.0f ), true );
 
 	mActiveCam = mHeadCam1;
-	mActivePerspCam = mCam0;
-	drawGuts(mViewArea0);
-
 	mActivePerspCam = mCam1;
+	drawGuts(mViewAreaLeft);
+
+	mActivePerspCam = mCam0;
 	mActiveCam = mHeadCam0;
-	drawGuts(mViewArea1);
+	drawGuts(mViewAreaRight);
 }
 
 void deltaTApp::drawGuts(Area area){
 
 	
 
-	gl::setMatricesWindow( getWindowSize(), false );
+	//gl::setMatricesWindow( getWindowSize(), false );
 	//gl::setViewport( getWindowBounds() );
 	gl::setViewport( area ); // This is what it will need to be set as
 	// Update camera position data
-	gl::setMatrices(mActivePerspCam);
-	gl::rotate(mSceneRotation);
-	
+	//gl::setMatrices(mActivePerspCam);
+	//gl::rotate(mSceneRotation);
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadMatrixf(mActiveCam.mProjectionMatrix);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadMatrixf(mActiveCam.mModelViewMatrix);
 
 	// clear out the window with white
-	gl::clear( Color( 1, 1, 1 ) ); 
+	//gl::clear( Color( 1, 1, 1 ) ); 
 	gl::enableAlphaBlending();
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 
 	for (unsigned int i = 0; i+1 < pointListArray.size(); i += 2){
-		ColorA lightingColor = mColorList[i % mColorList.size()];
+		ColorA lightingColor = mColorList[(i/2) % mColorList.size()];
 		setupGLLights(lightingColor);
 		drawRibbon(pointListArray[i], pointListArray[i+1]);
 	}
 
-	mParams->draw();
+	// Let's add some fog!
+	GLfloat density = 0.3;
 
+	GLfloat fogColor[4] = {0.5, 0.5, 0.5, 1.0};
+/*	glEnable (GL_FOG); //enable the fog
+	glFogi (GL_FOG_MODE, GL_EXP2); //set the fog mode to GL_EXP2
+	glFogfv (GL_FOG_COLOR, fogColor); //set the fog color to our color chosen above
+	glFogf (GL_FOG_DENSITY, density); //set the density to the value above
+	glHint (GL_FOG_HINT, GL_NICEST); // set the fog to look the nicest, may slow down on older cards
+*/	//mParams->draw();
+	//gl::drawStrokedCube(Vec3f(0,0,0),Vec3f(ROOM_WIDTH, ROOM_HEIGHT , ROOM_DEPTH ));
 }
 
 CINDER_APP_NATIVE( deltaTApp, RendererGl )

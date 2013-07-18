@@ -44,5 +44,8 @@ class HeadCam {
 	float				mFov;
 	
 	ci::Matrix44f		mMvpMatrix;
+	ci::Matrix44f		mProjectionMatrix;
+	ci::Matrix44f		mModelViewMatrix;
+
 	ci::Vec3f			mBillboardUp, mBillboardRight;
 };

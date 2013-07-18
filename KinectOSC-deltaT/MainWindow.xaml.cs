@@ -842,6 +842,7 @@ namespace KinectOSC
                                     (float)Math.Round(jointX, 4), (float)Math.Round(jointY, 4),
                                     (float)Math.Round(jointZ, 4)));
             oscWriter.Send(new OscBundle(DateTime.Now, jointElement.ToArray()));
+            deltaToscWriter.Send(new OscBundle(DateTime.Now, jointElement.ToArray()));
                 
             if (showOscData)
             {
