@@ -25,7 +25,7 @@ using namespace std;
 #define ROOM_HEIGHT 400
 #define ROOM_DEPTH 600
 
-#define MAX_LINE_SIZE 200
+#define MAX_LINE_SIZE 300
 
 
 
@@ -173,9 +173,11 @@ void deltaTApp::setup()
 	mColorList.push_back(colorFrom255(0,181,164,200)); // Bluish
 	mColorList.push_back(colorFrom255(170,62,78,200)); // Redish
 	mColorList.push_back(colorFrom255(248,222,77,200)); // Yellowish
-	mColorList.push_back(colorFrom255(200,51,73,200)); // Redish
 	mColorList.push_back(colorFrom255(254,173,82,200)); // Orangeish
+	mColorList.push_back(colorFrom255(248,222,77,200)); // Yellowish
+	mColorList.push_back(colorFrom255(200,51,73,200)); // Redish
 	mColorList.push_back(colorFrom255(0,205,181,200)); // Blueish
+	mColorList.push_back(colorFrom255(254,173,82,200)); // Orangeish
 
 	// Let's get some test data
 	pointList.push_back(Vec3f(0,0,0));
@@ -265,20 +267,24 @@ void deltaTApp::checkOSCMessage(const osc::Message * message){
 			elbowZ = constrain(elbowZ, -290, 290);		
 		}
 		// Don't use the data from the side kinects
-		else
-			return;
+		
 		// side kinects
-		if (handX < -400){
-			handX += 1200;
-			elbowX += 1200;
-			handX *= 1.1f;
-			elbowX *= 1.1f;
+		else if (handX < -400 && handZ > -300 && handZ < 300){
+			// Force our list to get big, which forces this hand to be someone else
+			ID += 10;
+			handX += 1500;
+			elbowX += 1500;
+			//handX *= 1.1f;
+			//elbowX *= 1.1f;
 			// Make sure that hands stay in the box-ish
 			handX = constrain(handX, -290, 290);
 			handZ = constrain(handZ, -290, 350);
 			elbowX = constrain(elbowX, -290, 290);
 			elbowZ = constrain(elbowZ, -290, 350);
 		}
+
+		else
+			return;
 
 		// Now that we've adjusted out data, let's put it into the arrays
 		Vec3f handPosition = Vec3f(handX, handY, handZ);
