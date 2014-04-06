@@ -18,17 +18,20 @@ using namespace ci;
 using namespace ci::app;
 using namespace std;
 
-#define APP_WIDTH		2560
-#define APP_HEIGHT		720
+#define APP_WIDTH		640 //2560
+#define APP_HEIGHT		480 //720
 
 #define ROOM_WIDTH 600
 #define ROOM_HEIGHT 400
 #define ROOM_DEPTH 600
 
+#define FRAMES_PER_CULL 30
+
 #define MAX_LINE_SIZE 300
 
-
-
+// This changes how deep or shallow an offset to put the kinect data
+//  Play with this if the ribbons are sticking to the front or back
+#define KINECT_DEPTH_OFFSET 1500
 
 
 class deltaTApp : public AppNative {
@@ -37,6 +40,7 @@ class deltaTApp : public AppNative {
 	void setup();
 	void mouseDown( MouseEvent event );	
 	void mouseMove( MouseEvent event );
+	void keyDown(KeyEvent event);
 	void update();
 	void draw();
 	void drawGuts(Area area);
@@ -256,8 +260,8 @@ void deltaTApp::checkOSCMessage(const osc::Message * message){
 
 		// Front kinects - only use data from these
 		if (handZ > 400 && handX < 300 && handX > -300){
-			handZ -= 1500;
-			elbowZ -= 1500;
+			handZ -= KINECT_DEPTH_OFFSET;
+			elbowZ -= KINECT_DEPTH_OFFSET;
 			// Make sure that hands stay in the box-ish
 			handX = constrain(handX, -290, 290);
 			handX = constrain(handX, -350, 290);
@@ -272,8 +276,8 @@ void deltaTApp::checkOSCMessage(const osc::Message * message){
 		else if (handX < -400 && handZ > -300 && handZ < 300){
 			// Force our list to get big, which forces this hand to be someone else
 			ID += 10;
-			handX += 1500;
-			elbowX += 1500;
+			handX += KINECT_DEPTH_OFFSET;
+			elbowX += KINECT_DEPTH_OFFSET;
 			//handX *= 1.1f;
 			//elbowX *= 1.1f;
 			// Make sure that hands stay in the box-ish
@@ -307,65 +311,43 @@ void deltaTApp::mouseDown( MouseEvent event )
 {
 }
 
+void deltaTApp::keyDown( KeyEvent event )
+{
+	
+	
+	switch( event.getCode() ){
+		//case KeyEvent::KEY_UP:		mMouseRightPos = Vec2f( 222.0f, 205.0f ) + getWindowCenter();	break;
+		case KeyEvent::KEY_UP:		setCameras(Vec3f(mHeadCam0.mEye.x, mHeadCam0.mEye.y, mHeadCam0.mEye.z - 100), true);
+									break;
+		//case KeyEvent::KEY_LEFT:	mMouseRightPos = Vec2f(-128.0f,-178.0f ) + getWindowCenter();	break;
+		case KeyEvent::KEY_LEFT:	setCameras(Vec3f(mHeadCam0.mEye.x - 100, mHeadCam0.mEye.y, mHeadCam0.mEye.z), true);
+									break;
+			//case KeyEvent::KEY_RIGHT:	mMouseRightPos = Vec2f(-256.0f, 122.0f ) + getWindowCenter();	break;
+		case KeyEvent::KEY_RIGHT:	setCameras(Vec3f(mHeadCam0.mEye.x + 100, mHeadCam0.mEye.y, mHeadCam0.mEye.z), true);	break;
+		//case KeyEvent::KEY_DOWN:	mMouseRightPos = Vec2f(   0.0f,   0.0f ) + getWindowCenter();	break;
+		case KeyEvent::KEY_DOWN:	setCameras(Vec3f(mHeadCam0.mEye.x, mHeadCam0.mEye.y, mHeadCam0.mEye.z + 100), true);
+									break;
+		default: break;
+	}
+}
+
 void deltaTApp::update()
 {
-	Vec3f projectionEye = mHeadCam0.mEye;
-	projectionEye.x = mHeadCam0.mCenter.x;
-	projectionEye.y = mHeadCam0.mCenter.y;
+	Vec3f topLeft = Vec3f(-ROOM_WIDTH/2, ROOM_HEIGHT/2, ROOM_DEPTH/2);
+	Vec3f bottomLeft = Vec3f(-ROOM_WIDTH/2, -ROOM_HEIGHT/2, ROOM_DEPTH/2);
+	Vec3f bottomRight = Vec3f(ROOM_WIDTH/2, -ROOM_HEIGHT/2, ROOM_DEPTH/2);
 
-	float zOffset = projectionEye.z - mHeadCam0.mCenter.z;
-	// We have to adjust the camera to take into account that it
-	//  doesn't distort enough past the edge of the screen
-	float r = 0.0f; 
-	float camXStorage = mHeadCam0.mEye.x;
-	if (mHeadCam0.mEye.x < -300){
-		r = (mHeadCam0.mEye.x + (ROOM_WIDTH / 2 )) / (mHeadCam0.mEye.z - (ROOM_DEPTH / 2));
-		mHeadCam0.mEye.x += r * mHeadCam0.mEye.z;
-	}
+	mHeadCam0.update(topLeft, bottomLeft, bottomRight, 10000);
 
-	Vec3f bottomLeft = Vec3f(-300, -200, -zOffset);
-	Vec3f bottomRight = Vec3f(300, -200, -zOffset);
-	Vec3f topLeft = Vec3f(-300, 200, -zOffset);
+	console() << "cam0 position" << mHeadCam0.mEye << std::endl;
 
-	mHeadCam0.update(projectionEye, bottomLeft, bottomRight, topLeft);
-	// Restore our camera position
-	mHeadCam0.mEye.x = camXStorage;
-
-//	console() << "cam0 position" << mHeadCam0.mEye << std::endl;
-//	console() << "projectionEye position" << projectionEye << std::endl;
-	// Make sure to set it back, so updating doesn't make this fly away...
-	// Now update Camera 1
+	topLeft = Vec3f(-ROOM_WIDTH/2, ROOM_HEIGHT/2, -ROOM_DEPTH/2);
+    bottomLeft = Vec3f(-ROOM_WIDTH/2, -ROOM_HEIGHT/2, -ROOM_DEPTH/2);
+	bottomRight = Vec3f(-ROOM_WIDTH/2, -ROOM_HEIGHT/2, ROOM_DEPTH/2);
 	
-	float xOffset = projectionEye.x - mHeadCam1.mCenter.x;
+	mHeadCam1.update(topLeft, bottomLeft, bottomRight, 10000);
 	
-	// The values we pass into update for the bounds and the projectionEye need to 
-	//  be coordinates relative to the camera, but mHeadCam1 is in global coordinates!
-	bottomLeft = Vec3f(-300, -200, mHeadCam1.mEye.x + 300);//xOffset);
-	bottomRight = Vec3f(300, -200, mHeadCam1.mEye.x + 300);//xOffset);
-	topLeft = Vec3f(-300, 200, mHeadCam1.mEye.x + 300);//xOffset);
-	
-	projectionEye.y = mHeadCam1.mCenter.y;
-	projectionEye.z = mHeadCam1.mCenter.z;
-
-	Vec3f tempEye = mHeadCam1.mEye;
-	// Again, I don't know why I've got to multiply this by 2
-	mHeadCam1.mEye.x = tempEye.z;
-	mHeadCam1.mEye.z = -tempEye.x;
-		
-	projectionEye = Vec3f(-mHeadCam1.mEye.z,0, 0);
-
-	// Again, we have to adjust for the incorrect camera correction
-	if (mHeadCam1.mEye.x > 300){
-		r = (mHeadCam1.mEye.x - (ROOM_DEPTH / 2 )) / (mHeadCam1.mEye.z - (ROOM_WIDTH / 2));
-		mHeadCam1.mEye.x += r * mHeadCam1.mEye.z;
-	}
-	
-	mHeadCam1.update(projectionEye, bottomLeft, bottomRight, topLeft);
-	
-//	console() << "cam1 position" << mHeadCam1.mEye << std::endl;
-//	console() << "projectionEye position" << projectionEye << std::endl;
-	mHeadCam1.mEye.x = tempEye.x;
-	mHeadCam1.mEye.z = tempEye.z;
+	console() << "cam1 position" << mHeadCam1.mEye << std::endl;
 
 
 	// Update line position data by culling the old data
@@ -377,8 +359,8 @@ void deltaTApp::update()
 
 	frameCounter++;
 	// Also cull old data when enough frames pass
-	if( frameCounter % 30 == 0){
-		//console() << "culling..." << endl;
+	if( frameCounter % FRAMES_PER_CULL == 0){
+		console() << "culling..." << endl;
 		for (unsigned int i = 0; i < pointListArray.size(); i++){
 			if (pointListArray[i].size() > 0){
 				pointListArray[i].pop_front();
@@ -504,7 +486,7 @@ void deltaTApp::drawGuts(Area area){
 	glMatrixMode(GL_PROJECTION);
 	glLoadMatrixf(mActiveCam.mProjectionMatrix);
 	glMatrixMode(GL_MODELVIEW);
-	glLoadMatrixf(mActiveCam.mModelViewMatrix);
+	glLoadMatrixf(mActiveCam.mCam.getModelViewMatrix());
 
 	// clear out the window with white
 	//gl::clear( Color( 1, 1, 1 ) ); 

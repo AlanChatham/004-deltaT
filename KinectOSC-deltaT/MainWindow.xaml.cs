@@ -494,11 +494,16 @@ namespace KinectOSC
         }
 
         #region Global Settings
-
+        // In meters
         float[] kinectXPositions = { 0f, -2.28f, -2.5f, -2.5f }; // X is positive left, if looking at the screen
+     //   float[] kinectXPositions = { -0.5f, -0.6f, -2.5f, -2.5f }; // X is positive left, if looking at the screen
         float[] kinectYPositions = { 0, 0, 0, 0 }; // Y is positive up
+     //   float[] kinectYPositions = { 0, 0, 0, 0 }; // Y is positive up
         float[] kinectZPositions = { 2.5f, 2.5f, 2.2f, 0.68f }; // Z is positive towards the screen, so offsets will usually be positive
+     //   float[] kinectZPositions = { 1.5f, 1.5f, 1.2f, 0.0f }; // Z is positive towards the screen, so offsets will usually be positive
+     //   float[] kinectZPositions = { 0.6f, 0.5f, 2.2f, 0.68f }; // Z is positive towards the screen, so offsets will usually be positive
         float[] kinectAngles = { 00, 0, 90, 90 };
+      //  float[] kinectAngles = { 0, 90, 90, 90 };
  
         /// <summary>
         /// Thickness of drawn joint lines
@@ -701,7 +706,8 @@ namespace KinectOSC
             // From each of our kinect sensors...
             foreach (VisualKinectUnit kinect in this.visualKinectUnitList){
                 // Read all our skeleton data
-                foreach (Skeleton skel in kinect.locatedSensor.globalSkeletons){
+ //               foreach (Skeleton skel in kinect.locatedSensor.globalSkeletons){
+                foreach (Skeleton skel in kinect.locatedSensor.relativeSkeletons){
                     // And if the skeleton is being tracked...
                     if (skel.TrackingState == SkeletonTrackingState.Tracked) {
                         currentSkeletonIDs.Add(skel.TrackingId);
